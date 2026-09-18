@@ -34,12 +34,13 @@ st.markdown(
     "ローカルWindows環境稼働版（スマホQR・FAXハイブリッド対応）"
 )
 
-# タブの作成
-tab1, tab2, tab3 = st.tabs(
+# タブの作成（タブ4を追加）
+tab1, tab2, tab3, tab4 = st.tabs(
     [
         "タブ1: 参加者ピックアップ＆はがきPDF作成",
-        "タブ2: 回答結果の自動取得 ＆ コンビニ収納CSV出力",
+        "タブ2: 最終リスト編集 ＆ コンビニ収納CSV出力",
         "タブ3: 領収書PDF発行",
+        "タブ4: スマホQR回答状況の確認",
     ]
 )
 
@@ -320,48 +321,27 @@ with tab1:
       st.error(f"ファイルの読み込み中にエラーが発生しました: {e}")
 
 # ==========================================
-# タブ2: 回答結果の自動取得 ＆ コンビニ収納CSV出力
+# タブ2: 最終リスト編集 ＆ コンビニ収納CSV出力
 # ==========================================
 with tab2:
-  st.header("2. Googleスプレッドシートから回答結果を自動取得 ＆ コンビニCSV出力")
+  st.header("2. 最終参加者リスト編集 ＆ コンビニ収納用WEB-EB CSV出力")
   st.markdown(
-      "スマホから回答された結果をスプレッドシートから直接読み込み、確認・編集した上でコンビニ収納用CSVを出力できます。"
+      "スマホ回答分およびFAX回答分をまとめた最終リストを読み込み・編集し、コンビニ収納用CSVを出力します。"
   )
 
-  # スプレッドシートの公開URL（またはCSVエクスポート用URL）を入力する欄
-  sheet_csv_url = st.text_input(
-      "Googleスプレッドシート「回答結果」のCSV公開リンク（または共有URL）",
-      value="",
-      placeholder="https://docs.google.com/spreadsheets/d/.../export?format=csv&gid=0",
-  )
-  st.info(
-      "💡 **ヒント:** スプレッドシートの「ファイル ＞ 共有 ＞ ウェブに公開」または「リンクを知っている全員が閲覧可」に設定し、URLの末尾を `export?format=csv` にしたリンクを入力すると、ワンクリックで最新データを取得できます。"
+  uploaded_file_tab2 = st.file_uploader(
+      "最終参加者リスト（Excel）をアップロード",
+      type=["xlsx", "xls"],
+      key="tab2_file",
   )
 
-  df_tab2 = None
-  if sheet_csv_url:
-    if st.button("🔄 スプレッドシートから最新の回答結果を読み込む"):
-      try:
-        df_tab2 = pd.read_csv(sheet_csv_url)
-        st.session_state["df_responses"] = df_tab2
-        st.success(
-            f"回答データを正常に取得しました（件数: {len(df_tab2)}件）"
-        )
-      except Exception as e:
-        st.error(
-            f"データの読み込みに失敗しました。URLを確認してください: {e}"
-        )
+  if uploaded_file_tab2 is not None:
+    df_tab2 = pd.read_excel(uploaded_file_tab2)
 
-  # セッションにデータがあれば保持
-  if "df_responses" in st.session_state:
-    df_tab2 = st.session_state["df_responses"]
-
-  if df_tab2 is not None:
-    st.subheader("📝 取得した回答リストの確認・編集")
+    st.subheader("📝 リストの最終確認・手動調整（FAX分等の追加・修正）")
     edited_tab2 = st.data_editor(df_tab2, num_rows="dynamic", hide_index=True)
 
-    if st.button("📤 コンビニ収納用WEB-EB CSVを生成"):
-      csv_buffer = io.BytesIO()
+    if st.button("📤 コンビニ収納用WEB-EB CSVを生成", key="t2_csv_btn"):
       csv_data = edited_tab2.to_csv(
           index=False, encoding="cp932", errors="replace"
       )
@@ -371,12 +351,9 @@ with tab2:
           data=csv_data,
           file_name="convenience_store_web_eb.csv",
           mime="text/csv",
+          key="t2_dl_btn",
       )
       st.success("CSVファイルを生成しました（Shift_JIS形式）")
-  else:
-    st.markdown(
-        "上の入力欄にスプレッドシートのリンクを入力し、読み込みボタンを押してください。"
-    )
 
 # ==========================================
 # タブ3: 領収書PDF発行（A4 2段切り取りタイプ・ブルー基調・社印欄なし）
@@ -571,3 +548,54 @@ with tab3:
           mime="application/pdf",
       )
       st.success("領収書PDFの生成が完了しました！")
+
+# ==========================================
+# タブ4: スマホQR回答状況の確認 ＆ CSV出力
+# ==========================================
+with tab4:
+  st.header("4. スマホQR回答状況の確認 ＆ CSV出力")
+  st.markdown(
+      "スマホからQRコード経由で回答されたリアルタイムの集計結果をスプレッドシートから自動取得し、確認・CSV出力できます。"
+  )
+
+  sheet_csv_url = st.text_input(
+      "Googleスプレッドシート「回答結果」のCSV公開リンク",
+      value="",
+      placeholder="https://docs.google.com/spreadsheets/d/.../export?format=csv&gid=0",
+      key="t4_url",
+  )
+  st.info(
+      "💡 スプレッドシートの「ファイル ＞ 共有 ＞ ウェブに公開」等でCSV形式（export?format=csv）にしたリンクを入力してください。"
+  )
+
+  df_tab4 = None
+  if sheet_csv_url:
+    if st.button("🔄 スプレッドシートから回答結果を読み込む", key="t4_load_btn"):
+      try:
+        df_tab4 = pd.read_csv(sheet_csv_url)
+        st.session_state["df_qr_responses"] = df_tab4
+        st.success(f"回答データを取得しました（件数: {len(df_tab4)}件）")
+      except Exception as e:
+        st.error(f"データの読み込みに失敗しました: {e}")
+
+  if "df_qr_responses" in st.session_state:
+    df_tab4 = st.session_state["df_qr_responses"]
+
+  if df_tab4 is not None:
+    st.subheader("📝 スマホ回答一覧の確認・編集")
+    edited_tab4 = st.data_editor(df_tab4, num_rows="dynamic", hide_index=True)
+
+    if st.button("📤 スマホ回答分のコンビニ収納CSVを生成", key="t4_csv_btn"):
+      csv_data_t4 = edited_tab4.to_csv(
+          index=False, encoding="cp932", errors="replace"
+      )
+      st.download_button(
+          label="💾 スマホ回答用 WEB-EB CSVファイルをダウンロード",
+          data=csv_data_t4,
+          file_name="qr_responses_web_eb.csv",
+          mime="text/csv",
+          key="t4_dl_btn",
+      )
+      st.success("CSVファイルを生成しました（Shift_JIS形式）")
+  else:
+    st.markdown("上の入力欄にスプレッドシートのリンクを入力し、読み込みボタンを押してください。")
