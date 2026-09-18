@@ -14,12 +14,10 @@ import streamlit as st
 
 # --- 日本語フォント（Noto Sans JP）の登録 ---
 try:
-  # Noto Sans JP（レギュラー版）を同じフォルダから読み込み
   font_path = "NotoSansJP-Regular.ttf"
   if os.path.exists(font_path):
     pdfmetrics.registerFont(TTFont("JapaneseFont", font_path))
   else:
-    # 万が一ファイルが見つからない場合のフォールバック（Windows標準メイリオ）
     alt_path = "C:\\Windows\\Fonts\\meiryo.ttc"
     if os.path.exists(alt_path):
       pdfmetrics.registerFont(TTFont("JapaneseFont", alt_path, subfontIndex=0))
@@ -40,7 +38,7 @@ st.markdown(
 tab1, tab2, tab3 = st.tabs(
     [
         "タブ1: 参加者ピックアップ＆はがきPDF作成",
-        "タブ2: 最終リスト編集 ＆ コンビニ収納CSV出力",
+        "タブ2: 回答結果の自動取得 ＆ コンビニ収納CSV出力",
         "タブ3: 領収書PDF発行",
     ]
 )
@@ -188,8 +186,8 @@ with tab1:
 
         st.subheader("🖨️ はがきPDF生成")
         github_base_url = st.text_input(
-            "GitHub Pagesの公開URL（例: https://your-name.github.io/event/）",
-            value="https://example.github.io/event/",
+            "GitHub Pagesの公開URL",
+            value="https://ark-field.github.io/chibanshi-iventsanka.app/",
         )
 
         if st.button("📄 選択会員分のはがきPDFを生成"):
@@ -322,27 +320,47 @@ with tab1:
       st.error(f"ファイルの読み込み中にエラーが発生しました: {e}")
 
 # ==========================================
-# タブ2: 最終リスト編集 ＆ コンビニ収納CSV出力
+# タブ2: 回答結果の自動取得 ＆ コンビニ収納CSV出力
 # ==========================================
 with tab2:
-  st.header("2. 最終参加者リスト編集 ＆ コンビニ収納用WEB-EB CSV出力")
+  st.header("2. Googleスプレッドシートから回答結果を自動取得 ＆ コンビニCSV出力")
   st.markdown(
-      "スマホ回答分およびFAX回答分をまとめた最終リストを読み込み・編集し、仮の並び順でCSVを出力します。"
+      "スマホから回答された結果をスプレッドシートから直接読み込み、確認・編集した上でコンビニ収納用CSVを出力できます。"
   )
 
-  uploaded_file_tab2 = st.file_uploader(
-      "最終参加者リスト（Excel）をアップロード",
-      type=["xlsx", "xls"],
-      key="tab2_file",
+  # スプレッドシートの公開URL（またはCSVエクスポート用URL）を入力する欄
+  sheet_csv_url = st.text_input(
+      "Googleスプレッドシート「回答結果」のCSV公開リンク（または共有URL）",
+      value="",
+      placeholder="https://docs.google.com/spreadsheets/d/.../export?format=csv&gid=0",
+  )
+  st.info(
+      "💡 **ヒント:** スプレッドシートの「ファイル ＞ 共有 ＞ ウェブに公開」または「リンクを知っている全員が閲覧可」に設定し、URLの末尾を `export?format=csv` にしたリンクを入力すると、ワンクリックで最新データを取得できます。"
   )
 
-  if uploaded_file_tab2 is not None:
-    df_tab2 = pd.read_excel(uploaded_file_tab2)
+  df_tab2 = None
+  if sheet_csv_url:
+    if st.button("🔄 スプレッドシートから最新の回答結果を読み込む"):
+      try:
+        df_tab2 = pd.read_csv(sheet_csv_url)
+        st.session_state["df_responses"] = df_tab2
+        st.success(
+            f"回答データを正常に取得しました（件数: {len(df_tab2)}件）"
+        )
+      except Exception as e:
+        st.error(
+            f"データの読み込みに失敗しました。URLを確認してください: {e}"
+        )
 
-    st.subheader("📝 リストの最終確認・手動調整（FAX分等の追加・修正）")
+  # セッションにデータがあれば保持
+  if "df_responses" in st.session_state:
+    df_tab2 = st.session_state["df_responses"]
+
+  if df_tab2 is not None:
+    st.subheader("📝 取得した回答リストの確認・編集")
     edited_tab2 = st.data_editor(df_tab2, num_rows="dynamic", hide_index=True)
 
-    if st.button("📤 コンビニ収納用WEB-EB CSVを生成（仮並び順）"):
+    if st.button("📤 コンビニ収納用WEB-EB CSVを生成"):
       csv_buffer = io.BytesIO()
       csv_data = edited_tab2.to_csv(
           index=False, encoding="cp932", errors="replace"
@@ -354,9 +372,11 @@ with tab2:
           file_name="convenience_store_web_eb.csv",
           mime="text/csv",
       )
-      st.success(
-          "CSVファイルを生成しました（Shift_JIS形式 / 仮の並び順）"
-      )
+      st.success("CSVファイルを生成しました（Shift_JIS形式）")
+  else:
+    st.markdown(
+        "上の入力欄にスプレッドシートのリンクを入力し、読み込みボタンを押してください。"
+    )
 
 # ==========================================
 # タブ3: 領収書PDF発行（A4 2段切り取りタイプ・ブルー基調・社印欄なし）
