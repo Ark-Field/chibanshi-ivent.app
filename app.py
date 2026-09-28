@@ -29,7 +29,7 @@ st.set_page_config(
     page_title="法人会イベント管理システム", layout="wide"
 )
 
-st.title("🏛️ 法人会イベント・会員管理システム")
+st.title("🏛️ 法人会リストアップ・はがき作成/領収書作成")
 st.markdown(
     "ローカルWindows環境稼働版（スマホQR・FAXハイブリッド対応）"
 )
