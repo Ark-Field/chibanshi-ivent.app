@@ -220,11 +220,17 @@ with tab1:
                     )
 
                 st.subheader("🖨️ はがきPDF生成")
-                github_base_url = st.text_input(
-                    "GitHub Pagesの公開URL",
-                    value="https://ark-field.github.io/chibanshi-iventsanka.app/",
-                    key="t1_github_url",
-                )
+                
+                # --- 【追加】QRコードの有無を切り替えるチェックボックス ---
+                include_qr = st.checkbox("はがきに個別のQRコードとIDを印字する", value=True, key="t1_include_qr")
+                
+                github_base_url = ""
+                if include_qr:
+                    github_base_url = st.text_input(
+                        "GitHub Pagesの公開URL",
+                        value="https://ark-field.github.io/chibanshi-iventsanka.app/",
+                        key="t1_github_url",
+                    )
 
                 if st.button("📄 選択会員分のはがきPDFを生成", key="t1_pdf_btn"):
                     if len(selected_rows) == 0:
@@ -255,17 +261,17 @@ with tab1:
                                 else ""
                             )
 
-                            qr_url = f"{github_base_url}?id={reg_no}"
-
-                            qr = qrcode.QRCode(box_size=2, border=1)
-                            qr.add_data(qr_url)
-                            qr.make(fit=True)
-                            qr_img = qr.make_image(
-                                fill_color="black", back_color="white"
-                            )
-
-                            temp_qr_path = f"temp_qr_{reg_no}.png"
-                            qr_img.save(temp_qr_path)
+                            temp_qr_path = None
+                            if include_qr:
+                                qr_url = f"{github_base_url}?id={reg_no}"
+                                qr = qrcode.QRCode(box_size=2, border=1)
+                                qr.add_data(qr_url)
+                                qr.make(fit=True)
+                                qr_img = qr.make_image(
+                                    fill_color="black", back_color="white"
+                                )
+                                temp_qr_path = f"temp_qr_{reg_no}.png"
+                                qr_img.save(temp_qr_path)
 
                             try:
                                 c.setFont("JapaneseFont", 10)
@@ -322,23 +328,25 @@ with tab1:
                                     c.setFont("Helvetica", 8)
                                 c.drawString(10 * mm, 16 * mm, f"メモ: {free_memo}")
 
-                            try:
-                                c.setFont("JapaneseFont", 11)
-                            except:
-                                c.setFont("Helvetica", 11)
-                            c.drawRightString(72 * mm, 28 * mm, f"ID: {reg_no}")
+                            # --- 【分岐】QRコードありの場合のみIDとQR画像を印字 ---
+                            if include_qr:
+                                try:
+                                    c.setFont("JapaneseFont", 11)
+                                except:
+                                    c.setFont("Helvetica", 11)
+                                c.drawRightString(72 * mm, 28 * mm, f"ID: {reg_no}")
 
-                            c.drawImage(
-                                temp_qr_path,
-                                78 * mm,
-                                24 * mm,
-                                width=20 * mm,
-                                height=20 * mm,
-                            )
+                                c.drawImage(
+                                    temp_qr_path,
+                                    78 * mm,
+                                    24 * mm,
+                                    width=20 * mm,
+                                    height=20 * mm,
+                                )
 
                             c.showPage()
 
-                            if os.path.exists(temp_qr_path):
+                            if temp_qr_path and os.path.exists(temp_qr_path):
                                 os.remove(temp_qr_path)
 
                         c.save()
